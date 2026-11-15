@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Via ferrata's van Italië tot Noorwegen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+/* Layout: werkpaneel links (filters + lijst), kaart rechts; op telefoon kaart boven, lijst eronder. */
+:root {
+  --bg: #f2f4f5;
+  --panel: #fbfcfc;
+  --ink: #14191c;
+  --muted: #5a656c;
+  --line: #d5dbdf;
+  --accent: #c2382b;      /* rood-wit-rood bergpadmarkering */
+  --sea: #dbe6ec;
+  --land: #eceeef;
+  --land-focus: #fdfdfc;
+  --border: #b4bec5;
+  --g1: #86b6ef; --g1-ink: #0d2a4d;
+  --g2: #3987e5; --g2-ink: #ffffff;
+  --g3: #1c5cab; --g3-ink: #ffffff;
+  --g4: #0d366b; --g4-ink: #ffffff;
+  --ring: #ffffff;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101416; --panel: #161b1e; --ink: #eef1f2; --muted: #9ba7ae; --line: #2b343a;
+    --accent: #ff6b5d; --sea: #0c171d; --land: #1a2024; --land-focus: #252d33; --border: #3d4952;
+    --g1: #1c5cab; --g1-ink: #ffffff;
+    --g2: #3987e5; --g2-ink: #ffffff;
+    --g3: #86b6ef; --g3-ink: #0d2a4d;
+    --g4: #cde2fb; --g4-ink: #0d2a4d;
+    --ring: #101416;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101416; --panel: #161b1e; --ink: #eef1f2; --muted: #9ba7ae; --line: #2b343a;
+  --accent: #ff6b5d; --sea: #0c171d; --land: #1a2024; --land-focus: #252d33; --border: #3d4952;
+  --g1: #1c5cab; --g1-ink: #ffffff;
+  --g2: #3987e5; --g2-ink: #ffffff;
+  --g3: #86b6ef; --g3-ink: #0d2a4d;
+  --g4: #cde2fb; --g4-ink: #0d2a4d;
+  --ring: #101416;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+
+.app { display: grid; grid-template-columns: 380px 1fr; height: 100%; }
+aside { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-right: 1px solid var(--line); }
+#map { height: 100%; background: var(--sea); }
+
+header { padding: 20px 20px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.mark { display: flex; gap: 3px; height: 5px; width: 54px; }
+.mark i { flex: 1; background: var(--accent); }
+.mark i:nth-child(2) { background: transparent; border: 1px solid var(--line); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; letter-spacing: .01em; margin: 6px 0 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+
+.filters { padding: 12px 20px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.flabel { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 13.5px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 999px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.chip:hover { border-color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 600; }
+.chip .n { color: var(--muted); }
+.chip .dot { width: 11px; height: 11px; border-radius: 50%; }
+.reset { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; text-decoration: underline; text-underline-offset: 2px; }
+.reset[hidden] { display: none; }
+
+.list { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 0 8px; }
+.group h2 { font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: .03em; margin: 0; padding: 12px 20px 4px; display: flex; justify-content: space-between; align-items: baseline; position: sticky; top: 0; background: var(--panel); }
+.group h2 span { font-family: var(--font-body); font-size: 13px; color: var(--muted); font-weight: 400; }
+.item { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; width: 100%; padding: 7px 20px; cursor: pointer; }
+.item:hover { background: color-mix(in srgb, var(--line) 45%, transparent); }
+.item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.item.active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.item .nm { font-weight: 600; }
+.item .pl { color: var(--muted); font-size: 13.5px; }
+.item .gr { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13.5px; }
+.empty { padding: 16px 20px; color: var(--muted); }
+
+.note { margin: 6px 20px 10px; padding: 10px 12px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); font-size: 13.5px; }
+footer { padding: 10px 20px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
+footer a { color: inherit; }
+
+/* Markers */
+.pin { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1; box-shadow: 0 0 0 2px var(--ring), 0 1px 3px rgba(0,0,0,.25); }
+.l1 { background: var(--g1); color: var(--g1-ink); }
+.l2 { background: var(--g2); color: var(--g2-ink); }
+.l3 { background: var(--g3); color: var(--g3-ink); }
+.l4 { background: var(--g4); color: var(--g4-ink); }
+.pinwrap { display: grid; place-items: center; }
+.far .pinwrap .pin { width: 15px; height: 15px; font-size: 0; box-shadow: 0 0 0 1.5px var(--ring); }
+.far .pinwrap .pin.dk { border-width: 1.5px; }
+.far .pinwrap .pin.sel { box-shadow: 0 0 0 1.5px var(--ring), 0 0 0 3.5px var(--accent); }
+.pin.dk { background: var(--panel); color: var(--ink); border: 2px dashed var(--muted); }
+.pin.sel { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--accent); }
+.dot.l1 { background: var(--g1); } .dot.l2 { background: var(--g2); } .dot.l3 { background: var(--g3); } .dot.l4 { background: var(--g4); }
+.item .pin { width: 26px; height: 26px; font-size: 14px; margin-top: 1px; }
+
+/* Kaart */
+.land { fill: var(--land); stroke: var(--border); fill-opacity: 1; stroke-width: .7; }
+.land.focus { fill: var(--land-focus); stroke: var(--border); }
+.clabel { display: inline-block; transform: translate(-50%, -50%); font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; pointer-events: none; text-shadow: 0 0 3px var(--land-focus), 0 0 3px var(--land-focus); }
+.clabel.other { opacity: .65; letter-spacing: .1em; font-size: 12px; }
+.clabel.small { font-size: 10.5px; letter-spacing: .08em; }
+.leaflet-container { font-family: var(--font-body); background: var(--sea); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--ink); box-shadow: 0 4px 16px rgba(0,0,0,.22); }
+.leaflet-popup-content { margin: 14px 16px; font-size: 14px; line-height: 1.45; min-width: 230px; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+.pop h3 { font-family: var(--font-display); font-weight: 700; font-size: 20px; margin: 0 0 2px; line-height: 1.1; }
+.pop .meta { color: var(--muted); margin: 0 0 8px; }
+.pop .tag { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 2px; }
+.pop .tag .pin { width: 20px; height: 20px; font-size: 12px; box-shadow: none; }
+.pop p { margin: 0 0 8px; }
+.pop a { color: var(--accent); font-weight: 600; }
+.leaflet-tooltip { background: var(--panel); color: var(--ink); border: 1px solid var(--line); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.leaflet-tooltip-top:before { border-top-color: var(--line); }
+.leaflet-bar a { background: var(--panel); color: var(--ink); border-bottom-color: var(--line); }
+.leaflet-bar a:hover { background: var(--bg); }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 80%, transparent) !important; color: var(--muted); }
+.leaflet-control-attribution a { color: var(--muted); }
+
+@media (max-width: 760px) {
+  .app { display: flex; flex-direction: column; }
+  #map { flex: 0 0 52%; height: auto; order: -1; }
+  aside { flex: 1; border-right: 0; border-top: 1px solid var(--line); }
+  header { padding: 14px 16px 10px; }
+  h1 { font-size: 24px; }
+  .filters, .group h2, .item, footer { padding-left: 16px; padding-right: 16px; }
+  .note { margin-left: 16px; margin-right: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <header>
+      <div class="mark" aria-hidden="true"><i></i><i></i><i></i></div>
+      <h1>Via ferrata's van Italië tot Noorwegen</h1>
+      <p class="sub" id="sum"></p>
+    </header>
+    <div class="filters">
+      <div class="flabel">Land</div>
+      <div class="chips" id="fc"></div>
+      <div class="flabel">Niveau hoofdroute</div>
+      <div class="chips" id="fl"></div>
+      <button class="reset" id="reset" type="button" hidden>Filters wissen</button>
+    </div>
+    <div class="list" id="list"></div>
+    <footer>
+      <div>Graden omgerekend naar A–F (schaal Schall). Frankrijk gebruikt F–ED en Zwitserland K1–K6, dus het is een benadering. Bij parken met meerdere routes staat het bereik; de kleur volgt de hoofdroute.</div>
+      <div>Punten liggen bij de start of het dorp, niet op de meter nauwkeurig. Check altijd de actuele topo en of de route open is.</div>
+    </footer>
+  </aside>
+  <div id="map" role="region" aria-label="Kaart met via ferrata's"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="europe-geo.js"></script>
+<script src="data.js"></script>
+<script>
+
+const LEVELS = [
+  {l:1, k:"A–B", d:"makkelijk"},
+  {l:2, k:"C", d:"gemiddeld"},
+  {l:3, k:"D", d:"moeilijk"},
+  {l:4, k:"E–F", d:"zeer moeilijk"}
+];
+const NOTES = {
+  DK: "Denemarken heeft geen via ferrata in de gewone zin. Het enige stuk kabel zit in een klimgroeve op Bornholm.",
+  LU: "In Luxemburg zelf staat geen via ferrata. Het dichtstbij liggen Wehrer Rosenberg aan de Moezel (vlak over de grens, uitzicht op Luxemburg), Neuerburg en Manderscheid in de Eifel; die staan onder Duitsland."
+};
+const FOCUS_IDS = new Set(["056","276","040","756","208","250","752","578","442","380"]);
+const cName = Object.fromEntries(COUNTRIES.map(x => [x.c, x.n]));
+
+const state = { countries: new Set(), levels: new Set(), active: null };
+
+const map = L.map("map", {
+  zoomSnap: 0.25, minZoom: 3.5, maxZoom: 10,
+  maxBounds: [[32, -28], [74, 48]], maxBoundsViscosity: 0.8,
+  worldCopyJump: false
+});
+map.attributionControl.setPrefix(false);
+map.attributionControl.addAttribution('Grenzen: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>');
+
+L.geoJSON(GEO, {
+  interactive: false,
+  style: f => ({ className: FOCUS_IDS.has(String(f.id)) ? "land focus" : "land", weight: 0.7, fillOpacity: 1 })
+}).addTo(map);
+
+const LABELS = [
+  ["België", 50.62, 4.35, 1], ["Duitsland", 51.6, 10.1, 1], ["Oostenrijk", 47.75, 14.6, 1],
+  ["Zwitserland", 47.05, 7.3, 1], ["Denemarken", 56.15, 9.1, 1], ["Frankrijk", 46.9, 2.6, 1],
+  ["Zweden", 60.2, 15.3, 1], ["Noorwegen", 62.9, 9.4, 1], ["Nederland", 52.35, 5.7, 0], ["Italië", 42.9, 12.4, 1], ["Luxemburg", 49.72, 5.95, 2]
+];
+for (const [t, la, lo, f] of LABELS) {
+  L.marker([la, lo], { interactive: false, keyboard: false,
+    icon: L.divIcon({ className: "", html: `<span class="clabel${f === 1 ? "" : f === 2 ? " small" : " other"}">${t}</span>`, iconSize: [0, 0], iconAnchor: [0, 0] })
+  }).addTo(map);
+}
+
+const letter = v => v.g.trim().charAt(0);
+const pinHtml = v => `<span class="pin ${v.dk ? "dk" : "l" + v.lvl}">${letter(v)}</span>`;
+const esc = s => s.replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+function popupHtml(v) {
+  const lvl = LEVELS.find(x => x.l === v.lvl);
+  const gm = `https://www.google.com/maps/search/?api=1&query=${v.lat},${v.lon}`;
+  return `<div class="pop">
+    <h3>${esc(v.n)}</h3>
+    <div class="meta">${esc(v.p)}, ${cName[v.c]}</div>
+    <div class="tag">${pinHtml(v)} Graad ${esc(v.g)}</div>${v.dk ? "" : `<div class="meta">${lvl.d[0].toUpperCase() + lvl.d.slice(1)}${v.m ? ", meerdere routes" : ""}</div>`}
+    <p>${esc(v.t)}</p>
+    <a href="${gm}" target="_blank" rel="noopener">Open in Google Maps</a>
+  </div>`;
+}
+
+const layer = L.layerGroup().addTo(map);
+VF.forEach((v, i) => {
+  v.i = i;
+  v.marker = L.marker([v.lat, v.lon], {
+    title: v.n, riseOnHover: true,
+    icon: L.divIcon({ className: "pinwrap", html: pinHtml(v), iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12] })
+  });
+  v.marker.bindTooltip(v.n, { direction: "top", offset: [0, -14] });
+  v.marker.bindPopup(() => popupHtml(v), { maxWidth: 300, autoPanPadding: [30, 30] });
+  v.marker.on("popupopen", () => setActive(i, false));
+  v.marker.on("popupclose", () => { if (state.active === i) setActive(null, false); });
+});
+
+function visible(v) {
+  return (!state.countries.size || state.countries.has(v.c)) && (!state.levels.size || state.levels.has(v.lvl));
+}
+
+function renderChips() {
+  const fc = document.getElementById("fc");
+  fc.innerHTML = COUNTRIES.map(x => {
+    const n = VF.filter(v => v.c === x.c && !v.dk).length;
+    return `<button type="button" class="chip" id="c-${x.c}" data-c="${x.c}" aria-pressed="${state.countries.has(x.c)}">${x.n} <span class="n">${n}</span></button>`;
+  }).join("");
+  const fl = document.getElementById("fl");
+  fl.innerHTML = LEVELS.map(x => `<button type="button" class="chip" id="l-${x.l}" data-l="${x.l}" aria-pressed="${state.levels.has(x.l)}"><span class="dot l${x.l}"></span>${x.k} ${x.d}</button>`).join("");
+  document.getElementById("reset").hidden = !(state.countries.size || state.levels.size);
+}
+
+function render() {
+  layer.clearLayers();
+  const shown = VF.filter(visible);
+  shown.forEach(v => layer.addLayer(v.marker));
+  const real = shown.filter(v => !v.dk);
+  const nc = new Set(real.map(v => v.c)).size;
+  document.getElementById("sum").textContent =
+    `${real.length} via ferrata's in ${nc} ${nc === 1 ? "land" : "landen"}. Klik een punt of een naam voor details.`;
+
+  const list = document.getElementById("list");
+  let html = "";
+  for (const x of COUNTRIES) {
+    const items = shown.filter(v => v.c === x.c);
+    if (!items.length) {
+      const wanted = state.countries.has(x.c) || (!state.countries.size && !state.levels.size);
+      if (NOTES[x.c] && wanted) html += `<section class="group"><h2>${x.n}<span>geen</span></h2><div class="note">${NOTES[x.c]}</div></section>`;
+      continue;
+    }
+    const cnt = items.filter(v => !v.dk).length;
+    html += `<section class="group"><h2>${x.n}<span>${x.c === "DK" ? "geen echte" : cnt}</span></h2>`;
+    if (NOTES[x.c]) html += `<div class="note">${NOTES[x.c]}</div>`;
+    for (const v of items) {
+      html += `<button type="button" class="item${state.active === v.i ? " active" : ""}" data-i="${v.i}" id="it-${v.i}">
+        ${pinHtml(v)}
+        <span><span class="nm">${esc(v.n)}</span><br><span class="pl">${esc(v.p)}</span> <span class="gr">· ${esc(v.g)}</span></span>
+      </button>`;
+    }
+    html += `</section>`;
+  }
+  list.innerHTML = html || `<div class="empty">Geen via ferrata's met deze filters. Wis de filters om alles te zien.</div>`;
+  renderChips();
+}
+
+function setActive(i, fly) {
+  if (state.active !== null && VF[state.active]) {
+    const el = VF[state.active].marker.getElement();
+    if (el) el.querySelector(".pin").classList.remove("sel");
+    const it = document.getElementById("it-" + state.active);
+    if (it) it.classList.remove("active");
+  }
+  state.active = i;
+  if (i === null) return;
+  const v = VF[i];
+  const el = v.marker.getElement();
+  if (el) el.querySelector(".pin").classList.add("sel");
+  const it = document.getElementById("it-" + i);
+  if (it) { it.classList.add("active"); if (!fly) it.scrollIntoView({ block: "nearest" }); }
+  if (fly) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const z = Math.max(map.getZoom(), 7);
+    if (reduce) { map.setView([v.lat, v.lon], z); v.marker.openPopup(); }
+    else { map.flyTo([v.lat, v.lon], z, { duration: 0.8 }); map.once("moveend", () => v.marker.openPopup()); }
+  }
+}
+
+document.getElementById("fc").addEventListener("click", e => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  const c = b.dataset.c;
+  state.countries.has(c) ? state.countries.delete(c) : state.countries.add(c);
+  map.closePopup(); render(); fitShown();
+});
+document.getElementById("fl").addEventListener("click", e => {
+  const b = e.target.closest("[data-l]"); if (!b) return;
+  const l = +b.dataset.l;
+  state.levels.has(l) ? state.levels.delete(l) : state.levels.add(l);
+  map.closePopup(); render();
+});
+document.getElementById("reset").addEventListener("click", () => {
+  state.countries.clear(); state.levels.clear(); map.closePopup(); render(); fitShown();
+});
+document.getElementById("list").addEventListener("click", e => {
+  const b = e.target.closest("[data-i]"); if (!b) return;
+  setActive(+b.dataset.i, true);
+});
+
+function fitShown() {
+  const pts = VF.filter(visible).map(v => [v.lat, v.lon]);
+  if (!pts.length) return;
+  if (pts.length === 1) { map.setView(pts[0], 8); return; }
+  map.fitBounds(pts, { padding: [36, 36], maxZoom: 8 });
+}
+
+const syncZoom = () => map.getContainer().classList.toggle("far", map.getZoom() < 5.5);
+map.on("zoomend", syncZoom);
+render();
+fitShown();
+syncZoom();
+</script>
+</body>
+</html>
