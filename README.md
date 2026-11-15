@@ -30,7 +30,7 @@ Voeg in `data.js` een regel toe aan `VF`:
 ## Let op
 
 - Graden zijn omgerekend naar de schaal A–F (Schall). Frankrijk gebruikt F–ED en Zwitserland K1–K6, dus het is een benadering.
-- Punten liggen bij de start of het dorp, niet op de meter nauwkeurig.
+- Coördinaten zijn gecontroleerd tegen OpenStreetMap (via ferrata's getagd als `highway=via_ferrata`); waar een route daar niet in staat, is het startpunt of de parkeerplaats uit topo-sites gebruikt. Het punt ligt meestal midden op de route, niet exact bij de instap.
 - Check altijd de actuele topo en of een route open is voordat je gaat.
 
 ## Bronnen
